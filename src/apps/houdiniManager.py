@@ -1,3 +1,7 @@
+"""
+Houdini interface to decompose lights
+"""
+
 import core.decomposer as core
 import hou
 from pathlib import Path

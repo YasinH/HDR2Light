@@ -16,7 +16,13 @@ def cross(v0, v1):
             v0[0]*v1[1]-v1[0]*v0[1]]
 
 def uvToPoint(uv, radius, theta_offset):
-
+    '''
+    converts UV point to 3D spherical coordinate
+    :param uv: A tuple of (u, v) 2D position
+    :param radius: Spherical radius (rho)
+    :param theta_offset: Latitude rotation offset in radians
+    :return: A tuple (x, y, z) coordinate
+    '''
     theta = -2*math.pi * uv[0] + theta_offset;
     phi = math.pi * uv[1];
 
@@ -27,6 +33,13 @@ def uvToPoint(uv, radius, theta_offset):
     return x, y, z
 
 def lookAtMatrix(eye, target, up):
+    '''
+    Lookat Matrix (aim/target)
+    :param eye: Source point
+    :param target: Target point
+    :param up: Up vector
+    :return: Transformation matrix
+    '''
     mz = normalize( (eye[0]-target[0], eye[1]-target[1], eye[2]-target[2]) ) # inverse line of sight
     mx = normalize( cross( up, mz ) )
     my = normalize( cross( mz, mx ) )
@@ -40,7 +53,11 @@ def lookAtMatrix(eye, target, up):
             [tx, ty, tz, 1]]
 
 def matrixToRotation(R) :
-
+    '''
+    Converts transformation matrix to rotation
+    :param R: Matrix
+    :return: Rotation in degrees as a tuple (x, y, z)
+    '''
     sy = math.sqrt(R[0][0] * R[0][0] +  R[1][0] * R[1][0])
 
     singular = sy < 1e-6

@@ -1,6 +1,10 @@
+"""
+Maya interface to decompose lights
+"""
+
 import core.decomposer as core
-import utils
 import common.constants as constants
+import utils
 
 import maya.cmds as cmds
 from pathlib import Path
@@ -29,7 +33,11 @@ class MayaManager(object):
 
 
     def isValidLight(self, node):
-
+        '''
+        Determines if given node is a supported light type
+        :param node: Input node
+        :return: 1 if light type is support, otherwise 0
+        '''
         for r, t in self.LIGHT_TYPES.iteritems():
             if cmds.nodeType(node) in t:
                 return 1
@@ -38,7 +46,10 @@ class MayaManager(object):
 
 
     def getLights(self, selection):
-
+        '''
+        Find supported lights under selections. Generally should be dome lights
+        :param selection: Selection to traverse in
+        '''
         for i in selection:
             for j in cmds.listRelatives(i, allDescendents=1):
                 if (self.isValidLight(j)):
@@ -47,21 +58,30 @@ class MayaManager(object):
                     self.lights['src_lights'].add(m_light)
 
 
-    def getLightImage(self, light):
-
+    def setMayaLightProps(self, light):
+        '''
+        Constructs MayaLight instances properties
+        :param light: Input light
+        '''
         if light not in self.lights['src_lights']:
             return
 
         if cmds.nodeType(cmds.listRelatives(light.node, s=1)) == self.LIGHT_TYPES['arnold'][constants.SKYDOME_MODE]:
-            file_node = cmds.listConnections(light.node + '.color')
-            if file_node[0] and cmds.nodeType(file_node[0]) == 'file':
-                light.img_path = cmds.getAttr(file_node[0] + '.fileTextureName')
-                light.file_node = file_node[0]
+            img_node = cmds.listConnections(light.node + '.color')
+            if img_node[0] and cmds.nodeType(img_node[0]) == 'file':
+                light.img_path = cmds.getAttr(img_node[0] + '.fileTextureName')
+                light.img_node = img_node[0]
                 light.light_type = self.LIGHT_TYPES['arnold'][constants.SKYDOME_MODE]
 
 
     def makeLight(self, src_light, img_light, suffix):
-
+        '''
+        Creates Maya lights from Decomposer ImageLights
+        :param src_light: MayaLight instance
+        :param img_light: Decomposer ImageLight
+        :param suffix: A custom suffix to prepend to the created light name
+        :return: The created Maya light
+        '''
         if img_light.mode == constants.SKYDOME_MODE:
             new_node = cmds.duplicate(src_light.node, name=src_light.node + suffix)[0]
         else:
@@ -76,16 +96,19 @@ class MayaManager(object):
             rx, ry, rz = utils.matrixToRotation(mat)
             cmds.setAttr(new_node + '.r', *[rx, ry, rz], type="float3")
             # Scale
-            cmds.setAttr(new_node + '.sx', img_light.ratio * self._radius)
-            cmds.setAttr(new_node + '.sy', self._radius)
+            # TO-DO: Figure out physical scale, possibly by arc length
+            cmds.setAttr(new_node + '.sx', img_light.ratio * self._radius * img_light.scale_world[0]*1.35)
+            cmds.setAttr(new_node + '.sy', self._radius * img_light.scale_world[0]*1.35)
 
-        new_file = cmds.duplicate(src_light.file_node,
-                                name=src_light.file_node + suffix,
+            cmds.setAttr(new_node + '.normalize', 0)
+
+        new_file = cmds.duplicate(src_light.img_node,
+                                name=src_light.img_node + suffix,
                                 inputConnections=1)[0]
         cmds.connectAttr(new_file+'.outColor', new_node+'.color')
         cmds.setAttr(new_file + '.fileTextureName', img_light.img_path, type='string')
         cmds.setAttr(new_file + '.colorSpace',
-                    cmds.getAttr(src_light.file_node + '.colorSpace'),
+                    cmds.getAttr(src_light.img_node + '.colorSpace'),
                     type='string')
         new_light = MayaLight(new_node, img_light.img_path, new_file)
 
@@ -93,12 +116,20 @@ class MayaManager(object):
         return new_light
 
 
-    def extractLights(self, lights_limit, modes=[], radius=10):
-
+    def extractLights(self, lights_limit, modes=[], radius=1000):
+        '''
+        Main interface to decompose lights
+        :param lights_limit: Number of lights to extract.
+                            This is limited to maximum number of lights decomposed by the decomposer
+        :param modes: A list of 0 or 1 for each extracted lights to set their type.
+                    0 for skydome mode, 1 for area mode
+        :param radius: If the extracted light is an area,
+                    radius indicates how far the light should be from the origin
+        '''
         self._radius = radius
 
         for light in self.lights['src_lights']:
-            self.getLightImage(light)
+            self.setMayaLightProps(light)
 
             self.decomposer = core.Decomposer(light.img_path)
             self.decomposer.preprocess()
