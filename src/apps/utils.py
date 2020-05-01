@@ -23,7 +23,7 @@ def uvToPoint(uv, radius, theta_offset):
     :param theta_offset: Latitude rotation offset in radians
     :return: A tuple (x, y, z) coordinate
     '''
-    theta = -2*math.pi * uv[0] + theta_offset;
+    theta = 2*math.pi * uv[0] + theta_offset;
     phi = math.pi * uv[1];
 
     x = math.cos(theta) * math.sin(phi) * radius;

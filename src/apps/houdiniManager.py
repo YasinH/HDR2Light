@@ -3,19 +3,27 @@ Houdini interface to decompose lights
 """
 
 import core.decomposer as core
+import common.constants as constants
+import baseManager as bm
+import utils
+
 import hou
-from pathlib import Path
+import math
 
-class HoudiniManager(object):
+from common.logger import Logger
 
-    LIGHT_TYPES = {'mantra':['envlight']}
-    ENV_SUFFIX = '_env_'
-    KEY_SUFFIX = '_key_'
+log = Logger()
+
+
+class HoudiniManager(bm.BaseManager):
+
+    LIGHT_TYPES = {'mantra':['envlight', 'hlight']}
 
     def __init__(self):
 
         self.decomposer = None
         self._lights = {'src_lights':set(), 'trg_lights':set()}
+        self._radius = 1000
 
     @property
     def lights(self):
@@ -28,7 +36,11 @@ class HoudiniManager(object):
 
 
     def isValidLight(self, node):
-
+        '''
+        Determines if given node is a supported light type
+        :param node: Input node
+        :return: 1 if light type is support, otherwise 0
+        '''
         for r, t in self.LIGHT_TYPES.iteritems():
             if node.type().name() in t:
                 return 1
@@ -37,7 +49,10 @@ class HoudiniManager(object):
 
 
     def getLights(self, selection):
-
+        '''
+        Find supported lights under selections. Generally should be dome lights
+        :param selection: Selection to traverse in
+        '''
         selected_nodes = [i for i in selection]
         child_nodes = [i.allSubChildren(recurse_in_locked_nodes=1) for i in selected_nodes if not self.isValidLight(i)]
         selected_nodes.extend(child_nodes)
@@ -48,95 +63,90 @@ class HoudiniManager(object):
                 self.lights['src_lights'].add(m_light)
 
 
-    def getLightImage(self, light):
-
+    def setLightProps(self, light):
+        '''
+        Constructs HoudiniLight instances properties
+        :param light: Input light
+        '''
         if light not in self.lights['src_lights']:
             return
 
-        if light.node.type().name() == self.LIGHT_TYPES['mantra'][0]:
+        if light.node.type().name() == self.LIGHT_TYPES['mantra'][constants.SKYDOME_MODE]:
             light.img_path = light.node.parm('env_map').eval()
             # setting file_node to light node since it's the same node (for now!)
             light.file_node = light.node
-            light.light_type = self.LIGHT_TYPES['mantra'][0]
+            light.light_type = self.LIGHT_TYPES['mantra'][constants.SKYDOME_MODE]
 
 
-    def makeLight(self, src_light, img_path, suffix):
+    def makeLight(self, src_light, img_light, suffix):
+        '''
+        Creates Houdini lights from Decomposer ImageLights.
+        :param src_light: HoudiniLight instance
+        :param img_light: Decomposer ImageLight
+        :param suffix: A custom suffix to prepend to the created light name
+        :return: The created Houdini light
+        '''
+        # TO-DO: Add full support for input textures (implicit or explicit)
+        if img_light.mode == constants.SKYDOME_MODE:
+            new_node = src_light.node.copyTo(src_light.node.parent())
+            new_node.parm('env_map').set(str(img_light.img_path))
+        else:
+            new_node = src_light.node.parent().createNode(self.LIGHT_TYPES['mantra'][constants.AREA_MODE])
+            new_node.parm('light_type').set(2)
 
-        new_node = src_light.node.copyTo(src_light.node.parent())
+            # Translate
+            tx, ty, tz = utils.uvToPoint(img_light.uv, self._radius, +math.pi/2)
+            new_node.parmTuple('t').set((tx, ty, tz))
+            # Rotation
+            mat = utils.lookAtMatrix([tx, ty, tz], [0, 0, 0], [0, 1, 0])
+            rx, ry, rz = utils.matrixToRotation(mat)
+            new_node.parmTuple('r').set((rx, ry, rz))
+            # Scale
+            # TO-DO: Figure out physical scale, possibly by arc length
+            new_node.parm('areasize1').set(self._radius * img_light.scale_world[0] * 2 * 1.5)
+            new_node.parm('areasize2').set(self._radius * img_light.scale_world[1] * 1.5)
+
+            new_node.parm('normalizearea').set(0)
+            new_node.parm('light_texture').set(str(img_light.img_path))
+
         new_node.setName(src_light.node.name() + suffix, unique_name=1)
         # setting new_file to light node since it's the same node (for now!)
         new_file = new_node
-        new_file.parm('env_map').set(str(img_path))
-        new_light = HoudiniLight(new_node, img_path, new_file)
+        new_light = HoudiniLight(new_node, img_light.img_path, new_file)
 
         self.lights['trg_lights'].add(new_light)
         return new_light
 
 
-    def extractLights(self, lights_limit):
+    def extractLights(self, lights_count, modes=[], radius=1000, blend=25):
+        '''
+        Main interface to decompose lights
+        :param lights_count: Number of lights to extract.
+                            This is limited to maximum number of lights decomposed by the decomposer
+        :param modes: A list of 0 or 1 for each extracted lights to set their type.
+                    0 for skydome mode, 1 for area mode
+        :param radius: If the extracted light is an area,
+                    radius indicates how far the light should be from the origin
+        :param blend: The amount of edge blur from key lights to environment
+        '''
+        self._radius = radius
 
         for light in self.lights['src_lights']:
-            self.getLightImage(light)
+            self.setLightProps(light)
 
             self.decomposer = core.Decomposer(hou.expandString(light.img_path))
             self.decomposer.preprocess()
-            self.decomposer.decompose(lights_limit)
+            self.decomposer.decompose(lights_count, modes, blend)
             self.decomposer.export()
 
-            for idx, env_path in enumerate(self.decomposer._envs_paths):
-                self.makeLight(light, env_path, self.ENV_SUFFIX + str(idx + 1))
-            for idx, light_path in enumerate(self.decomposer._lights_paths):
-                self.makeLight(light, light_path, self.KEY_SUFFIX + str(idx + 1))
+            for idx, env_light in enumerate(self.decomposer.envs):
+                self.makeLight(light, env_light, constants.ENV_SUFFIX + str(idx + 1))
+            for i in xrange(self.decomposer.lights_count):
+                self.makeLight(light, self.decomposer.lights[i], constants.KEY_SUFFIX + str(i + 1))
+
+        log.info("Finished extracting {} lights".format(len(self.lights['trg_lights'])))
 
 
-class HoudiniLight(object):
+class HoudiniLight(bm.BaseLight):
 
-    def __init__(self, node, img_path=Path(), img_node=None, light_type=''):
-
-        self._node = node
-        self._img_path = img_path
-        self._img_node = img_node
-        self._light_type = light_type
-
-    @property
-    def node(self):
-        return self._node
-
-    @node.setter
-    def labels(self, node):
-        self._node = node
-
-    @property
-    def img_path(self):
-        return str(self._img_path)
-
-    @img_path.setter
-    def img_path(self, img_path):
-        self._img_path = Path(img_path)
-
-    @property
-    def img_node(self):
-        return self._img_node
-
-    @img_node.setter
-    def img_node(self, img_node):
-        self._img_node = img_node
-
-    @property
-    def light_type(self):
-        return self._light_type
-
-    @light_type.setter
-    def light_type(self, light_type):
-        self._light_type = light_type
-
-
-    def __eq__(self, other):
-        if isinstance(other, HoudiniLight):
-            return (self.node == other.node and
-                    self.img_path == other.img_path and
-                    self.img_node == other.img_node)
-        return False
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
+    pass

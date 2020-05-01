@@ -4,23 +4,26 @@ Maya interface to decompose lights
 
 import core.decomposer as core
 import common.constants as constants
+import baseManager as bm
 import utils
 
 import maya.cmds as cmds
-from pathlib import Path
 import math
 
-class MayaManager(object):
+from common.logger import Logger
+
+log = Logger()
+
+
+class MayaManager(bm.BaseManager):
 
     LIGHT_TYPES = {'arnold':['aiSkyDomeLight', 'aiAreaLight']}
-    ENV_SUFFIX = '_env_'
-    KEY_SUFFIX = '_key_'
 
     def __init__(self):
 
         self.decomposer = None
         self._lights = {'src_lights':set(), 'trg_lights':set()}
-        self._radius = 10
+        self._radius = 1000
 
     @property
     def lights(self):
@@ -57,8 +60,10 @@ class MayaManager(object):
                     m_light = MayaLight(light_trans)
                     self.lights['src_lights'].add(m_light)
 
+        return self._lights['src_lights']
 
-    def setMayaLightProps(self, light):
+
+    def setLightProps(self, light):
         '''
         Constructs MayaLight instances properties
         :param light: Input light
@@ -85,11 +90,11 @@ class MayaManager(object):
         if img_light.mode == constants.SKYDOME_MODE:
             new_node = cmds.duplicate(src_light.node, name=src_light.node + suffix)[0]
         else:
-            new_node = cmds.shadingNode('aiAreaLight',
+            new_node = cmds.shadingNode(self.LIGHT_TYPES['arnold'][constants.AREA_MODE],
                                     name=('%sShape1' % src_light.node + suffix),
                                     asLight=1)
             # Translate
-            tx, ty, tz = utils.uvToPoint(img_light.uv, self._radius, -math.pi/10)
+            tx, ty, tz = utils.uvToPoint(img_light.uv, self._radius, -math.pi/2)
             cmds.setAttr(new_node + '.t', *[tx, ty, tz], type="float3")
             # Rotation
             mat = utils.lookAtMatrix([tx, ty, tz], [0, 0, 0], [0, 1, 0])
@@ -97,8 +102,8 @@ class MayaManager(object):
             cmds.setAttr(new_node + '.r', *[rx, ry, rz], type="float3")
             # Scale
             # TO-DO: Figure out physical scale, possibly by arc length
-            cmds.setAttr(new_node + '.sx', img_light.ratio * self._radius * img_light.scale_world[0]*1.35)
-            cmds.setAttr(new_node + '.sy', self._radius * img_light.scale_world[0]*1.35)
+            cmds.setAttr(new_node + '.sx', self._radius * img_light.scale_world[0] * 2 * 1.5)
+            cmds.setAttr(new_node + '.sy', self._radius * img_light.scale_world[1] * 1.5)
 
             cmds.setAttr(new_node + '.normalize', 0)
 
@@ -113,84 +118,39 @@ class MayaManager(object):
         new_light = MayaLight(new_node, img_light.img_path, new_file)
 
         self.lights['trg_lights'].add(new_light)
+
         return new_light
 
 
-    def extractLights(self, lights_limit, modes=[], radius=1000):
+    def extractLights(self, lights_count, modes=[], radius=1000, blend=25):
         '''
         Main interface to decompose lights
-        :param lights_limit: Number of lights to extract.
+        :param lights_count: Number of lights to extract.
                             This is limited to maximum number of lights decomposed by the decomposer
         :param modes: A list of 0 or 1 for each extracted lights to set their type.
                     0 for skydome mode, 1 for area mode
         :param radius: If the extracted light is an area,
                     radius indicates how far the light should be from the origin
+        :param blend: The amount of edge blur from key lights to environment
         '''
         self._radius = radius
 
         for light in self.lights['src_lights']:
-            self.setMayaLightProps(light)
+            self.setLightProps(light)
 
             self.decomposer = core.Decomposer(light.img_path)
             self.decomposer.preprocess()
-            self.decomposer.decompose(lights_limit, modes)
+            self.decomposer.decompose(lights_count, modes, blend)
             self.decomposer.export()
 
             for idx, env_light in enumerate(self.decomposer.envs):
-                self.makeLight(light, env_light, self.ENV_SUFFIX + str(idx + 1))
+                self.makeLight(light, env_light, constants.ENV_SUFFIX + str(idx + 1))
+            for i in xrange(self.decomposer.lights_count):
+                self.makeLight(light, self.decomposer.lights[i], constants.KEY_SUFFIX + str(i + 1))
 
-            for i in xrange(lights_limit):
-                self.makeLight(light, self.decomposer.lights[i], self.KEY_SUFFIX + str(idx + 1))
-
-
-class MayaLight(object):
-
-    def __init__(self, node, img_path=Path(), img_node=None, light_type=''):
-
-        self._node = node
-        self._img_path = img_path
-        self._img_node = img_node
-        self._light_type = light_type
-
-    @property
-    def node(self):
-        return self._node
-
-    @node.setter
-    def labels(self, node):
-        self._node = node
-
-    @property
-    def img_path(self):
-        return str(self._img_path)
-
-    @img_path.setter
-    def img_path(self, img_path):
-        self._img_path = Path(img_path)
-
-    @property
-    def img_node(self):
-        return self._img_node
-
-    @img_node.setter
-    def img_node(self, img_node):
-        self._img_node = img_node
-
-    @property
-    def light_type(self):
-        return self._light_type
-
-    @light_type.setter
-    def light_type(self, light_type):
-        self._light_type = light_type
+        log.info("Finished extracting {} lights".format(len(self.lights['trg_lights'])))
 
 
-    def __eq__(self, other):
-        if isinstance(other, MayaLight):
-            return (self.node == other.node and
-                    self.img_path == other.img_path and
-                    self.img_node == other.img_node)
-        return False
+class MayaLight(bm.BaseLight):
 
-    def __ne__(self, other):
-        return not self.__eq__(other)
+    pass

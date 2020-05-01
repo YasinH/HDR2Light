@@ -1,6 +1,8 @@
 import main
+import baseManager
 import utils
 reload(main)
+reload(baseManager)
 reload(utils)
 
 try:

@@ -9,8 +9,10 @@ import cv2
 import numpy as np
 import math
 from pathlib import Path
-import sys
-import logging
+
+from common.logger import Logger
+
+log = Logger()
 
 
 class Decomposer(object):
@@ -21,6 +23,7 @@ class Decomposer(object):
         self._img_in = self.__readImage(self._img_path)
         self._img_height, self._img_width = self._img_in.shape[:2]
         self._img_copy = self._img_in.copy()
+        self._blend = 25
 
         self._lights = []
         self._envs = []
@@ -29,6 +32,8 @@ class Decomposer(object):
         self._stats = None
         self._centroids = None
         self._sorted_rets = []
+
+        self._lights_count = 0
 
     @property
     def lights(self):
@@ -45,6 +50,10 @@ class Decomposer(object):
     @envs.setter
     def envs(self, envs):
         self._envs = envs
+
+    @property
+    def lights_count(self):
+        return self._lights_count
 
     def isSimilarTo(self, l1, l2):
         '''
@@ -227,22 +236,24 @@ class Decomposer(object):
         return img_cropped
 
 
-    def decompose(self, lights_limit=1, modes=[]):
+    def decompose(self, lights_count=1, modes=[], blend=25):
         '''
         Main method to decompose lights from HDR image
-        :param lights_limit: Number of lights to extract.
+        :param lights_count: Number of lights to extract.
                             This is limited to maximum number of connected components
         :param modes: A list of 0 or 1 for each extracted lights to set their type.
                     0 for skydome mode, 1 for area mode
+        :param blend: The amount of edge blur from key lights to environment
         '''
-        if lights_limit < 1 :
+        if lights_count < 1 :
             return
 
-        lights_count = int(min(lights_limit, len(self._lights)))
+        self._blend = blend
+        self._lights_count = int(min(lights_count, len(self._lights)))
         height, width = self._img_copy.shape[:2]
         lights_mask = np.uint8(np.zeros(self._labels.shape[:2]))
 
-        for idx in xrange(lights_count):
+        for idx in xrange(self._lights_count):
 
             img_hsv = cv2.cvtColor(self._img_copy, cv2.COLOR_BGR2HSV)
 
@@ -251,7 +262,8 @@ class Decomposer(object):
                 hot_label_mask[np.where(self._labels == i)] = 255
                 lights_mask[np.where(self._labels == i)] = 255
 
-            hot_label_blur = cv2.GaussianBlur(hot_label_mask, (25, 25), 0)
+            hot_label_blur = cv2.GaussianBlur(hot_label_mask,
+                                    (self._blend, self._blend), 0)
 
             for i in range(width):
                 for j in range(height):
@@ -298,12 +310,14 @@ class Decomposer(object):
         lights_to_export = [il for il in self._lights if il.img is not None]
         # Key lights
         for idx, light in enumerate(lights_to_export):
-            out_file = out_dir / (self._img_path.stem + '_key_' + format(idx+1, '03') + self._img_path.suffix)
+            out_file = out_dir / (self._img_path.stem + constants.KEY_SUFFIX +
+                                    format(idx+1, '03') + self._img_path.suffix)
             light.img_path = out_file
             cv2.imwrite(str(light.img_path), light.img)
 
         # Env light
-        out_file = out_dir / (self._img_path.stem + '_env' + self._img_path.suffix)
+        out_file = out_dir / (self._img_path.stem + constants.ENV_SUFFIX[:-1] +
+                                                        self._img_path.suffix)
         cv2.imwrite(str(out_file), self._envs[0].img)
         self._envs[0].img_path = out_file
 
@@ -331,8 +345,9 @@ class Decomposer(object):
             return max_loc[0], max_loc[1]
 
     def __readImage(self, img_path):
-        # TO-DO: Complete this
+        # TO-DO: Proper logging
         if not img_path.is_file():
+            log.error('invalid input image')
             raise Exception('invalid input image')
         img = cv2.imread(str(img_path), -1)
         # min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(img)
@@ -435,7 +450,10 @@ class ImageLight(object):
 
     def __eq__(self, other):
         if isinstance(other, Light):
-            return self.labels == other.labels
+            return (self.labels == other.labels and
+                    self.img == other.img and
+                    self.mode == other.mode and
+                    self.img_path == other.img_path)
         return False
 
     def __ne__(self, other):

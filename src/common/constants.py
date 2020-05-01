@@ -1,3 +1,6 @@
 
+ENV_SUFFIX = '_env_'
+KEY_SUFFIX = '_key_'
+
 SKYDOME_MODE = 0
 AREA_MODE = 1
