@@ -17,6 +17,7 @@ log = Logger()
 
 class HoudiniManager(bm.BaseManager):
 
+    THETA_OFFSET = +math.pi/2
     LIGHT_TYPES = {'mantra':['envlight', 'hlight']}
 
     def __init__(self):
@@ -94,17 +95,24 @@ class HoudiniManager(bm.BaseManager):
             new_node = src_light.node.parent().createNode(self.LIGHT_TYPES['mantra'][constants.AREA_MODE])
             new_node.parm('light_type').set(2)
 
+            scale_coeff = 1.05
             # Translate
-            tx, ty, tz = utils.uvToPoint(img_light.uv, self._radius, +math.pi/2)
+            tx, ty, tz = utils.uvToPoint(img_light.uv[0], self._radius, self.THETA_OFFSET)
             new_node.parmTuple('t').set((tx, ty, tz))
             # Rotation
             mat = utils.lookAtMatrix([tx, ty, tz], [0, 0, 0], [0, 1, 0])
             rx, ry, rz = utils.matrixToRotation(mat)
             new_node.parmTuple('r').set((rx, ry, rz))
             # Scale
-            # TO-DO: Figure out physical scale, possibly by arc length
-            new_node.parm('areasize1').set(self._radius * img_light.scale_world[0] * 2 * 1.5)
-            new_node.parm('areasize2').set(self._radius * img_light.scale_world[1] * 1.5)
+            # TO-DO: May be simpler ways to find the correct scale
+            pl = utils.uvToPoint(img_light.uv[1], self._radius, self.THETA_OFFSET)
+            pr = utils.uvToPoint(img_light.uv[2], self._radius, self.THETA_OFFSET)
+            pt = utils.uvToPoint(img_light.uv[3], self._radius, self.THETA_OFFSET)
+            pb = utils.uvToPoint(img_light.uv[4], self._radius, self.THETA_OFFSET)
+            dist_x = utils.distance(pl, pr)/float(2)
+            dist_y = utils.distance(pt, pb)/float(2)
+            new_node.parm('areasize1').set(dist_x * scale_coeff)
+            new_node.parm('areasize2').set(dist_y * scale_coeff)
 
             new_node.parm('normalizearea').set(0)
             new_node.parm('light_texture').set(str(img_light.img_path))
@@ -123,7 +131,7 @@ class HoudiniManager(bm.BaseManager):
         Main interface to decompose lights
         :param lights_count: Number of lights to extract.
                             This is limited to maximum number of lights decomposed by the decomposer
-        :param modes: A list of 0 or 1 for each extracted lights to set their type.
+        :param modes: A list or int of 0 or 1 for each extracted lights to set their type.
                     0 for skydome mode, 1 for area mode
         :param radius: If the extracted light is an area,
                     radius indicates how far the light should be from the origin

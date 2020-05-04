@@ -20,7 +20,7 @@ class Decomposer(object):
     def __init__(self, img_path=''):
 
         self._img_path = Path(img_path)
-        self._img_in = self.__readImage(self._img_path)
+        self._img_in = Decomposer._readImage(self._img_path)
         self._img_height, self._img_width = self._img_in.shape[:2]
         self._img_copy = self._img_in.copy()
         self._blend = 25
@@ -125,14 +125,14 @@ class Decomposer(object):
                     if self.isSimilarTo(y_borders['left'], y_borders_ext['right']):
                         hot_labels_idx.append(i)
 
-            pos_img = self._getPosition(hot_labels_idx[:1]), self._img_copy
+            pos_img = self._getPosition(hot_labels_idx[:1])
         else:
-            pos_img = self._getPosition(hot_labels_idx), self._img_copy
+            pos_img = self._getPosition(hot_labels_idx)
         # TO-DO: fix with proper logger
         if len(hot_labels_idx) > 4:
             raise Exception ("Too many labels")
 
-        light = ImageLight(hot_labels_idx)
+        light = ImageLight(hot_labels_idx, self._img_copy.shape)
         light.position = pos_img
 
         return light
@@ -143,13 +143,10 @@ class Decomposer(object):
         Sorts label IDs based on their energy
         '''
         labels_energy = []
-        img_hsv = cv2.cvtColor(self._img_copy, cv2.COLOR_BGR2HSV)
+        img_gray = cv2.cvtColor(self._img_copy, cv2.COLOR_BGR2GRAY)
 
         for i in range(1, self._ret):
-            energy = 0
-            x_pixels, y_pixels = np.where(self._labels == i)
-            for x, y in zip(x_pixels, y_pixels):
-                energy += img_hsv[x, y][2]
+            energy = np.sum(img_gray[self._labels == i])
             labels_energy.append((i, energy))
 
         labels_energy.sort(key= lambda x: x[1], reverse=1)
@@ -160,8 +157,10 @@ class Decomposer(object):
         '''
         Preprocesses image and initializes certain parameters
         '''
+        # TO-DO: Avoid resizing the original image size
         if self._img_height > 2048:
-            self._img_copy = cv2.resize(self._img_copy, (0,0), fx=self._img_width/2, fy=self._img_height/2)
+            scale = 2048 / float(self._img_height)
+            self._img_copy = cv2.resize(self._img_copy, (0,0), fx=scale, fy=scale)
 
         height, width = self._img_copy.shape[:2]
         img_gray = cv2.cvtColor(self._img_copy, cv2.COLOR_BGR2GRAY)
@@ -183,6 +182,7 @@ class Decomposer(object):
             light = self.findLight(gray_blr, id)
             self._lights.append(light)
             visited_labels.update(light.labels)
+
 
     def borderBlackPixels(self, img):
         '''
@@ -241,7 +241,7 @@ class Decomposer(object):
         Main method to decompose lights from HDR image
         :param lights_count: Number of lights to extract.
                             This is limited to maximum number of connected components
-        :param modes: A list of 0 or 1 for each extracted lights to set their type.
+        :param modes: A list or int of 0 or 1 for each extracted lights to set their type.
                     0 for skydome mode, 1 for area mode
         :param blend: The amount of edge blur from key lights to environment
         '''
@@ -265,17 +265,16 @@ class Decomposer(object):
             hot_label_blur = cv2.GaussianBlur(hot_label_mask,
                                     (self._blend, self._blend), 0)
 
-            for i in range(width):
-                for j in range(height):
-                    if hot_label_blur[j, i] > 0:
-                        if img_hsv[j, i][2] > 1:
-                            img_hsv[j, i][2] = 1
+            img_hsv[np.where(np.logical_and(np.greater(hot_label_blur, 0),
+                                            np.greater(img_hsv[:,:,2], 1)))] = 1
 
-            key = np.zeros((height,width,3), np.float32)
+            key = np.zeros((height, width, 3), np.float32)
             hot_label_blur_32 = (hot_label_blur).astype('float32')/255
             key = self._img_copy * hot_label_blur_32[:, :, None]
 
             if modes:
+                if isinstance(modes, int):
+                    modes = [modes] * lights_count
                 if modes[idx] == constants.AREA_MODE and idx < len(modes):
                     key = self.cropToArea(key)
                     self._lights[idx].mode = constants.AREA_MODE
@@ -293,7 +292,7 @@ class Decomposer(object):
         inpaint = (inpaint).astype('float32')/255
         env[np.where(lights_mask == 255)] = inpaint[np.where(lights_mask == 255)]
 
-        env_light = ImageLight([0])
+        env_light = ImageLight([0], self._img_copy.shape)
         env_light.img = env
         self._envs.append(env_light)
 
@@ -344,15 +343,21 @@ class Decomposer(object):
             min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(cv2.cvtColor(label_img, cv2.COLOR_BGR2GRAY))
             return max_loc[0], max_loc[1]
 
-    def __readImage(self, img_path):
+    @staticmethod
+    def _readImage(img_path):
         # TO-DO: Proper logging
         if not img_path.is_file():
-            log.error('invalid input image')
-            raise Exception('invalid input image')
+            msg = 'Could not find file {}'.format(str(img_path))
+            log.error(msg)
+            raise IOError(msg)
+
         img = cv2.imread(str(img_path), -1)
-        # min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(img)
-        # if max_val <= 1:
-        #     raise Exception('invalid input image')
+        gray_blr = cv2.GaussianBlur(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), (3, 3), 0)
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(gray_blr)
+        if max_val <= 1:
+            msg = 'Image is not an HDR! Values must be larger than 1. {}', format(str(img_path))
+            log.error(msg)
+            raise IOError(msg)
 
         return img
 
@@ -376,11 +381,13 @@ class Decomposer(object):
 
 class ImageLight(object):
 
-    def __init__(self, labels, mode=constants.SKYDOME_MODE):
+    def __init__(self, labels, parent_shape, mode=constants.SKYDOME_MODE):
 
         self._labels = labels
+        self._parent_shape = parent_shape
         self._mode = mode
         self._img = None
+        self._shape = (0, 0)
         self._img_path = None
         self._position = (0, 0)
         self._uv = (0, 0)
@@ -413,6 +420,12 @@ class ImageLight(object):
     def img(self, img):
         self._img = img
         self._ratio = img.shape[1]/float(img.shape[0])
+        self._shape = img.shape[:2]
+        self._uv = self._getUV(self._position, self._parent_shape )
+
+    @property
+    def shape(self):
+        return self._shape
 
     @property
     def img_path(self):
@@ -427,14 +440,12 @@ class ImageLight(object):
         return self._position
 
     @position.setter
-    def position(self, position_img):
-        self._position, img_world= position_img[0], position_img[1]
-        self._uv = (self._position[0]/float(img_world.shape[1]),
-                    self._position[1]/float(img_world.shape[0]))
+    def position(self, position):
+        self._position = position
 
     @property
     def uv(self):
-        return self._uv
+            return self._uv
 
     @property
     def scale_world(self):
@@ -447,6 +458,14 @@ class ImageLight(object):
     @property
     def ratio(self):
         return self._ratio
+
+    def _getUV(self, p, size):
+        center = p[0]/float(size[1]), p[1]/float(size[0])
+        left = (p[0] - self._shape[1]/2) / float(size[1]), p[1]/float(size[0])
+        right = (p[0] + self._shape[1]/2) / float(size[1]), p[1]/float(size[0])
+        top = p[0]/float(size[1]), (p[1] - self._shape[0]/2) / float(size[0])
+        bottom = p[0]/float(size[1]), (p[1] + self._shape[0]/2) / float(size[0])
+        return [center, left, right, top, bottom]
 
     def __eq__(self, other):
         if isinstance(other, Light):

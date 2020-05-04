@@ -3,6 +3,9 @@ import math
 def length(v):
     return math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2])
 
+def distance(p1, p2):
+    return math.sqrt((p2[0]-p1[0]) ** 2 + (p2[1]-p1[1]) ** 2 + (p2[2]-p1[2]) ** 2)
+
 def normalize(v):
     l = length(v)
     return [v[0]/l, v[1]/l, v[2]/l]

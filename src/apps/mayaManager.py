@@ -17,6 +17,7 @@ log = Logger()
 
 class MayaManager(bm.BaseManager):
 
+    THETA_OFFSET = -math.pi/2
     LIGHT_TYPES = {'arnold':['aiSkyDomeLight', 'aiAreaLight']}
 
     def __init__(self):
@@ -93,17 +94,24 @@ class MayaManager(bm.BaseManager):
             new_node = cmds.shadingNode(self.LIGHT_TYPES['arnold'][constants.AREA_MODE],
                                     name=('%sShape1' % src_light.node + suffix),
                                     asLight=1)
+            scale_coeff = 1.05
             # Translate
-            tx, ty, tz = utils.uvToPoint(img_light.uv, self._radius, -math.pi/2)
+            tx, ty, tz = utils.uvToPoint(img_light.uv[0], self._radius, self.THETA_OFFSET)
             cmds.setAttr(new_node + '.t', *[tx, ty, tz], type="float3")
             # Rotation
             mat = utils.lookAtMatrix([tx, ty, tz], [0, 0, 0], [0, 1, 0])
             rx, ry, rz = utils.matrixToRotation(mat)
             cmds.setAttr(new_node + '.r', *[rx, ry, rz], type="float3")
             # Scale
-            # TO-DO: Figure out physical scale, possibly by arc length
-            cmds.setAttr(new_node + '.sx', self._radius * img_light.scale_world[0] * 2 * 1.5)
-            cmds.setAttr(new_node + '.sy', self._radius * img_light.scale_world[1] * 1.5)
+            # TO-DO: May be simpler ways to find the correct scale
+            pl = utils.uvToPoint(img_light.uv[1], self._radius, self.THETA_OFFSET)
+            pr = utils.uvToPoint(img_light.uv[2], self._radius, self.THETA_OFFSET)
+            pt = utils.uvToPoint(img_light.uv[3], self._radius, self.THETA_OFFSET)
+            pb = utils.uvToPoint(img_light.uv[4], self._radius, self.THETA_OFFSET)
+            dist_x = utils.distance(pl, pr)/float(2)
+            dist_y = utils.distance(pt, pb)/float(2)
+            cmds.setAttr(new_node + '.sx', dist_x * scale_coeff)
+            cmds.setAttr(new_node + '.sy', dist_y * scale_coeff)
 
             cmds.setAttr(new_node + '.normalize', 0)
 
@@ -127,7 +135,7 @@ class MayaManager(bm.BaseManager):
         Main interface to decompose lights
         :param lights_count: Number of lights to extract.
                             This is limited to maximum number of lights decomposed by the decomposer
-        :param modes: A list of 0 or 1 for each extracted lights to set their type.
+        :param modes: A list or int of 0 or 1 for each extracted lights to set their type.
                     0 for skydome mode, 1 for area mode
         :param radius: If the extracted light is an area,
                     radius indicates how far the light should be from the origin
