@@ -1,5 +1,5 @@
 """
-Maya interface to decompose lights
+Maya interface for light decomposer
 """
 
 import core.decomposer as core
@@ -157,6 +157,10 @@ class MayaManager(bm.BaseManager):
                 self.makeLight(light, self.decomposer.lights[i], constants.KEY_SUFFIX + str(i + 1))
 
         log.info("Finished extracting {} lights".format(len(self.lights['trg_lights'])))
+
+    @staticmethod
+    def getSelection():
+        return cmds.ls(sl=True)
 
 
 class MayaLight(bm.BaseLight):

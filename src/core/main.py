@@ -1,4 +1,9 @@
-import decomposer
+#!/bin/env python
+
+import core.decomposer as decomposer
+from common.logger import Logger
+
+log = Logger()
 
 def run(img_path, lights_limit=1, modes=[]):
 
