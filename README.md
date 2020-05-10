@@ -6,8 +6,8 @@ HDR2Light is an image processing toolkit that decomposes lights from HDR images 
 
 ## Supported Applications and Renderers
 
-  - Houdini, Mantra
   - Maya, Arnold
+  - Houdini, Mantra
 
 ## Dependencies
 
@@ -19,18 +19,26 @@ HDR2Light is an image processing toolkit that decomposes lights from HDR images 
 
 ## Installation
 
-Add the *src* folder path to `PYTHONPATH` or anywhere that can be found by your application of choice
+Add the **src** folder path to `PYTHONPATH` or anywhere that can be found by your application environment of choice
 
-## Try it
+## Try it out
 
-  1. Open Maya or Houdini and create an Arnold or Mantra skydome light, then give it an HDR texture
-  2. Select the light
-  3. From Maya script editor or Houdini Python Source Editor, run the following
+  1. Open Maya or Houdini and create an Arnold or Mantra skydome light, then give it an HDR texture as its color
+  2. Select the light (or make any selection that contains any number of such lights)
+  3. From Maya script editor or Houdini Python source editor, run the following, and the decomposed lights will get created.
   ```  
   import apps
   apps.main.run(lights_count=4, modes=1, radius=1000, blend=25)
   ```
+  `lights_count`: Number of lights to extract. This is limited to maximum number of lights decomposed by the decomposer
+  `modes`: A list or int of 0 or 1 for each extracted lights type. 0 for skydome mode, 1 for area mode
+  `radius`: If the extracted light is an area light, radius indicates how far the light should be from the origin
+  `blend`: The amount of edge blur from key lights to environment
 
 ## Current limitations
 
- - If images are
+This tool is currently a proof of concept and hasn't been exhaustively tested. You will likely experience problems, in which case, please let me know directly or by submitting an Issue.
+
+  - Input images that are bigger than 8k get resized to 8k.
+  - Basic texture connections are supported. If the texture file is connected or referenced from somewhere else, it will be recognized.
+  - The blend amount is quite erroneous, it's better to keep it at the default for now.

@@ -102,6 +102,10 @@ class MayaManager(bm.BaseManager):
             mat = utils.lookAtMatrix([tx, ty, tz], [0, 0, 0], [0, 1, 0])
             rx, ry, rz = utils.matrixToRotation(mat)
             cmds.setAttr(new_node + '.r', *[rx, ry, rz], type="float3")
+            rot_src = cmds.xform(src_light.node, q=1, worldSpace=1, rotation=1)
+            cmds.xform(new_node, worldSpace=1, pivots=[0,0,0])
+            cmds.xform(new_node, worldSpace=1, rotation= rot_src, relative=1)
+            cmds.xform(new_node, centerPivots=1)
             # Scale
             # TO-DO: May be simpler ways to find the correct scale
             pl = utils.uvToPoint(img_light.uv[1], self._radius, self.THETA_OFFSET)
@@ -158,6 +162,7 @@ class MayaManager(bm.BaseManager):
 
         log.info("Finished extracting {} lights".format(len(self.lights['trg_lights'])))
 
+
     @staticmethod
     def getSelection():
         return cmds.ls(sl=True)
@@ -165,4 +170,5 @@ class MayaManager(bm.BaseManager):
 
 class MayaLight(bm.BaseLight):
 
-    pass
+    def delete(self):
+        cmds.delete(self._node, hierarchy='below')

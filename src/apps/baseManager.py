@@ -45,6 +45,17 @@ class BaseManager(object):
         self._radius = radius
         pass
 
+    def deleteLights(self):
+        '''
+        Deletes created lights
+        '''
+        for light in self.lights['trg_lights']:
+            light.delete()
+        count = len(self.lights['trg_lights'])
+        self.lights['trg_lights'] = set()
+
+        log.info("Deleted {} lights".format(count))
+
 
 class BaseLight(object):
 
@@ -86,6 +97,9 @@ class BaseLight(object):
     @light_type.setter
     def light_type(self, light_type):
         self._light_type = light_type
+
+    def delete(self):
+        pass
 
     def __eq__(self, other):
         if isinstance(other, MayaLight):

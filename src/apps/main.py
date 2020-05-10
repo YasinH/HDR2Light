@@ -28,3 +28,5 @@ def run(lights_count, modes=[], radius=1000, blend=25):
         manager = HoudiniManager()
         manager.getLights(HoudiniManager.getSelection())
     manager.extractLights(lights_count, modes, radius, blend)
+    
+    return manager

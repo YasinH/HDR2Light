@@ -1,5 +1,5 @@
 """
-Houdini interface for light decomposer 
+Houdini interface for light decomposer
 """
 
 import core.decomposer as core
@@ -98,11 +98,13 @@ class HoudiniManager(bm.BaseManager):
             scale_coeff = 1.05
             # Translate
             tx, ty, tz = utils.uvToPoint(img_light.uv[0], self._radius, self.THETA_OFFSET)
-            new_node.parmTuple('t').set((tx, ty, tz))
+            t = hou.hmath.buildTranslate((tx, ty, tz))
             # Rotation
             mat = utils.lookAtMatrix([tx, ty, tz], [0, 0, 0], [0, 1, 0])
             rx, ry, rz = utils.matrixToRotation(mat)
-            new_node.parmTuple('r').set((rx, ry, rz))
+            src_rot = hou.hmath.buildRotate(src_light.node.worldTransform().extractRotates())
+            r = hou.hmath.buildRotate((rx, ry, rz))
+            new_node.setWorldTransform(r * t * src_rot)
             # Scale
             # TO-DO: May be simpler ways to find the correct scale
             pl = utils.uvToPoint(img_light.uv[1], self._radius, self.THETA_OFFSET)
@@ -162,4 +164,5 @@ class HoudiniManager(bm.BaseManager):
 
 class HoudiniLight(bm.BaseLight):
 
-    pass
+    def delete(self):
+        hou.Node.destroy(self._node)
