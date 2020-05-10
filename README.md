@@ -1,6 +1,6 @@
 # HDR2Light
 
-HDR2Light is an image processing toolkit that decomposes lights from HDR images into either dome or areal lights with plugin support for various DCCs
+HDR2Light is an image processing toolkit that decomposes lights from HDR images into either dome or area lights with plugin support for various DCCs
 
 * Demo video: [https://vimeo.com/406863743](https://vimeo.com/406863743)
 
@@ -30,9 +30,9 @@ Add the **src** folder path to `PYTHONPATH` or anywhere that can be found by you
   import apps
   apps.main.run(lights_count=4, modes=1, radius=1000, blend=25)
   ```
-  `lights_count`: Number of lights to extract. This is limited to maximum number of lights decomposed by the decomposer
-  `modes`: A list or int of 0 or 1 for each extracted lights type. 0 for skydome mode, 1 for area mode
-  `radius`: If the extracted light is an area light, radius indicates how far the light should be from the origin
+  `lights_count`: Number of lights to extract. This is limited to maximum number of lights decomposed by the decomposer\
+  `modes`: A list or int of 0 or 1 for each extracted lights type. 0 for skydome mode, 1 for area mode\
+  `radius`: If the extracted light is an area light, radius indicates how far the light should be from the origin\
   `blend`: The amount of edge blur from key lights to environment
 
 ## Current limitations
@@ -40,5 +40,6 @@ Add the **src** folder path to `PYTHONPATH` or anywhere that can be found by you
 This tool is currently a proof of concept and hasn't been exhaustively tested. You will likely experience problems, in which case, please let me know directly or by submitting an Issue.
 
   - Input images that are bigger than 8k get resized to 8k.
+  - Area lights intensity in Mantra is not accurate. You need to manually adjust the exposure    
   - Basic texture connections are supported. If the texture file is connected or referenced from somewhere else, it will be recognized.
   - The blend amount is quite erroneous, it's better to keep it at the default for now.

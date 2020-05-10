@@ -158,8 +158,8 @@ class Decomposer(object):
         Preprocesses image and initializes certain parameters
         '''
         # TO-DO: Avoid resizing the original image size
-        if self._img_height > 2048:
-            scale = 2048 / float(self._img_height)
+        if self._img_height > 4096:
+            scale = 4096 / float(self._img_height)
             self._img_copy = cv2.resize(self._img_copy, (0,0), fx=scale, fy=scale)
 
         height, width = self._img_copy.shape[:2]
