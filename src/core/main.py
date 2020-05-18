@@ -1,4 +1,8 @@
 #!/bin/env python
+#
+#  Copyright (c) 2020, Yasin Hasanian
+#  See license.txt
+#
 
 import core.decomposer as decomposer
 from common.logger import Logger

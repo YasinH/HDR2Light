@@ -1,3 +1,7 @@
+#
+#  Copyright (c) 2020, Yasin Hasanian
+#  See license.txt
+#
 
 ENV_SUFFIX = '_env_'
 KEY_SUFFIX = '_key_'

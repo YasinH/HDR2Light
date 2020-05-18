@@ -1,4 +1,8 @@
 #!/bin/env python
+#
+#  Copyright (c) 2020, Yasin Hasanian
+#  See license.txt
+#
 
 from common.logger import Logger
 log = Logger()
@@ -28,5 +32,5 @@ def run(lights_count, modes=[], radius=1000, blend=25):
         manager = HoudiniManager()
         manager.getLights(HoudiniManager.getSelection())
     manager.extractLights(lights_count, modes, radius, blend)
-    
+
     return manager

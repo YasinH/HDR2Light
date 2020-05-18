@@ -1,3 +1,8 @@
+#
+#  Copyright (c) 2020, Yasin Hasanian
+#  See license.txt
+#
+
 """
 Base interface to be inherited by apps
 """

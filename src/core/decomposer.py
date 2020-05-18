@@ -1,3 +1,8 @@
+#
+#  Copyright (c) 2020, Yasin Hasanian
+#  See license.txt
+#
+
 """
 Main image processor that decomposes lights from HDR images
 """
