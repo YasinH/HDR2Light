@@ -2,7 +2,8 @@
 
 HDR2Light is an image processing toolkit that decomposes lights from HDR images into either dome or area lights with plugin support for various DCCs in order to leverage artistic controls over HDRI lighting.
 
-* Demo video: [https://vimeo.com/406863743](https://vimeo.com/406863743)
+* Intro video: [https://vimeo.com/406863743](https://vimeo.com/406863743)
+* Demo video: [https://vimeo.com/419821083](https://vimeo.com/419821083)
 
 ## Supported Applications and Renderers
 
