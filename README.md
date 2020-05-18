@@ -5,6 +5,8 @@ HDR2Light is an image processing toolkit that decomposes lights from HDR images 
 * Intro video: [https://vimeo.com/406863743](https://vimeo.com/406863743)
 * Demo video: [https://vimeo.com/419821083](https://vimeo.com/419821083)
 
+![HDR2Light sample](/docs/poster.jpg)
+
 ## Supported Applications and Renderers
 
   - Maya, Arnold
