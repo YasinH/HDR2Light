@@ -161,6 +161,7 @@ class Decomposer(object):
         if self._img_height > 4096:
             scale = 4096 / float(self._img_height)
             self._img_copy = cv2.resize(self._img_copy, (0,0), fx=scale, fy=scale)
+            log.warning("Image resized to 8k. Images larger than 4k in height are not supported, currently.")
 
         height, width = self._img_copy.shape[:2]
         img_gray = cv2.cvtColor(self._img_copy, cv2.COLOR_BGR2GRAY)
@@ -312,12 +313,16 @@ class Decomposer(object):
             out_file = out_dir / (self._img_path.stem + constants.KEY_SUFFIX +
                                     format(idx+1, '03') + self._img_path.suffix)
             light.img_path = out_file
-            cv2.imwrite(str(light.img_path), light.img)
+            status = cv2.imwrite(str(light.img_path), light.img)
+            if not status:
+                log.error("Could not write image to disk {}".format(str(light.img_path)))
 
         # Env light
         out_file = out_dir / (self._img_path.stem + constants.ENV_SUFFIX[:-1] +
                                                         self._img_path.suffix)
-        cv2.imwrite(str(out_file), self._envs[0].img)
+        status = cv2.imwrite(str(out_file), self._envs[0].img)
+        if not status:
+            log.error("Could not write image to disk {}".format(str(light.img_path)))
         self._envs[0].img_path = out_file
 
 

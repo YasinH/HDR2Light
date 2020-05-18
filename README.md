@@ -1,6 +1,6 @@
 # HDR2Light
 
-HDR2Light is an image processing toolkit that decomposes lights from HDR images into either dome or area lights with plugin support for various DCCs
+HDR2Light is an image processing toolkit that decomposes lights from HDR images into either dome or area lights with plugin support for various DCCs in order to leverage artistic controls over HDRI lighting.
 
 * Demo video: [https://vimeo.com/406863743](https://vimeo.com/406863743)
 
@@ -41,5 +41,5 @@ This tool is currently a proof of concept and hasn't been exhaustively tested. Y
 
   - Input images that are bigger than 8k get resized to 8k.
   - Area lights intensity in Mantra is not accurate. You need to manually adjust the exposure    
-  - Basic texture connections are supported. If the texture file is connected or referenced from somewhere else, it will be recognized.
+  - Only basic texture connections to lights are supported. Indirect connections will not be recognized
   - The blend amount is quite erroneous, it's better to keep it at the default for now.
